@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "Little Trie-data based dictionary that translates webpages with wide features",
   "scripts": {
-    "build": "npm run compile && node gen_manifest.js && npm run build:copy",
-    "clean": "rm manifest.json && . dictGen/build.sh clean",
+    "build": "npm run compile && npm run build:copy",
+    "clean": "rm -rf manifest.json build/ && . dictGen/build.sh clean",
     "compile": "tsc",
-    "build:copy": "cp -r manifest.json icons README.md ./build",
-    "build:zip": "rm -f ./build.zip && (cd ./build && zip -r ../build.zip .)"
+    "build:copy": "mkdir build/icons/ && node gen_manifest.js && cp -r manifest.json README.md build/",
+    "build:zip": "rm -f build.zip && (cd ./build && zip -r ../build.zip .)"
   },
   "author": "duangsuse",
   "license": "GPL-3.0",
