@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "lib": ["es5", "dom"],
+    "outDir": "build",
+    "declarations": false,
+    "sourceMap": false
+  },
+  "include": ["src/**.ts"]
+}

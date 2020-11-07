@@ -1,0 +1,18 @@
+{
+  "name": "little-dict",
+  "version": "1.0.0",
+  "description": "Little Trie-data based dictionary that translates webpages with wide features",
+  "scripts": {
+    "build": "npm run compile && node gen_manifest.js && npm run build:copy",
+    "clean": "rm manifest.json && . dictGen/build.sh clean",
+    "compile": "tsc",
+    "build:copy": "cp -r manifest.json icons README.md ./build",
+    "build:zip": "rm -f ./build.zip && (cd ./build && zip -r ../build.zip .)"
+  },
+  "author": "duangsuse",
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@types/chrome": "0.0.104",
+    "typescript": "~3.8.0"
+  }
+}
