@@ -1,4 +1,5 @@
 package-lock.json
 build/
+build.zip
 dictGen/cache/
 dictGen/data/

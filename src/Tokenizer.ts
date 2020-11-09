@@ -34,13 +34,23 @@ function xhrReadText(url: string): Promise<string> {
 }
 const alertFailedReq = ([url, msg]) => alert(`Failed get ${url}: ${msg}`);
 
-
 type TokenIter = Iterable<[string, string?]>
 type CustomRender = (name:string, desc:string) => HTMLElement
+type SMap = Map<string, string>
+function matchAll(re: RegExp, s: string): RegExpExecArray[] {
+  return s.match(re)?.map(part => { re.lastIndex = 0; return re.exec(part) }) ?? [];
+}
+function reduceToFirst<T>(xs: T[], op: (fst:T, item:T) => any): T {
+  let fst = xs[0];
+  for (let i=1; i < xs.length; i++) op(fst, xs[i]);
+  return fst;
+}
 
-let dict = {};
+let dict: Map<String, ()=>STrie> = new Map;
 let trie: STrie;
+let noTrie: STrie = new Trie; noTrie.set(["X"], "待加载");
 let delimiters: PairString = ["\n", "="];
+const SEP = " ";
 const newlines = {}; for (let nl of ["\n", "\r", "\r\n"]) newlines[nl] = null;
 
 let customHTML: CustomRender;
@@ -53,7 +63,7 @@ function splitTrieData(s: string) {
   });
 }
 function tokenize(input: string): TokenIter {
-  return trie.tokenize(input, c => inwordGrep[c]);
+  return tokenizeTrie(trie, input, c => inwordGrep[c]);
 }
 function registerOneshotClicks(es: HTMLCollection, actions: (() => any)[]) { // "feat=" oneshot feat.
   let i = 0;
@@ -78,28 +88,88 @@ document.addEventListener("DOMContentLoaded", async () => {
     btn_showTrie = helem("do-showTrie"), // 看底层字典
     btn_readDict = helem("do-readDict"),
     btn_revDict = helem("do-reverse");
-  let dlStatus: HTMLOptionElement;
 
-  let noTrie = new Trie({ "X": {[KZ]:"待加载"} });
-  const setTrie = () => { let name = sel_mode.value; trie = (name in dict)? dict[name] : noTrie; };
+  let dlStatus: HTMLOptionElement;
+  const setTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)() : noTrie; };
   const prepLoadConfig = () => { // conf-add feat.
     dlStatus = element("option", withText("待从配置加载！"));
     sel_mode.appendChild(dlStatus);
     setTrie(); // noTrie
   };
   const loadConfig = async (url: string) => {
-    await readDict(url, (k, trie) => {
+    await readDict(url, (k, mk_trie) => {
       dlStatus.textContent = `在下载 ${k}…`;
-      if (!(k in dict)) {
+      if (!dict.has(k)) {
         sel_mode.appendChild(element("option", withText(k)));
       } // 加字典选项 若还未存 feat appendOptUnion.
-      dict[k] = trie;
+      dict.set(k, mk_trie);
+      setTrie(); if (trie !== noTrie) { doGenerate(); } // start rendering as early as possible
     });
     sel_mode.removeChild(dlStatus);
     setTrie(); // first trie
   };
 
-  //v misc in-helpDoc button event, dyn generated.
+  const featConfiger = () => { //v misc in-helpDoc button event, dyn generated.
+    const e = btn_revDict;
+    let btn_import = element("button", withText("导入参数"));
+    btn_import.onclick = () => { prepLoadConfig(); loadConfig(ta_text.value); };
+    e.parentNode.insertBefore(btn_import, e.nextSibling);
+    let btn_loadRendered = element("button", withText("叠改已渲染文本"));
+    btn_loadRendered.onclick = () => { ta_text.value = div_out.innerText; doGenerate(); };
+    e.parentNode.insertBefore(btn_loadRendered, e.nextSibling);
+  };
+  let featureEnablers = initFeatureEnablers(btn_gen, div_out, sel_display);
+  featureEnablers[1] = featConfiger;
+  registerOneshotClicks(helem("output").getElementsByTagName("button"), featureEnablers);
+
+  let customFmtRef: [RecurStructFmt] = [undefined];
+  initDisplayOnChange(sel_display, customFmtRef);
+
+  sel_mode.onchange = setTrie;
+  prepLoadConfig();
+  createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
+
+  num_fontSize.onchange = () => { div_out.style.fontSize = `${num_fontSize.value}pt`; }; // convenient shortcut methods
+  ta_text.addEventListener("keydown", (ev:KeyboardEvent) => { if (ev.ctrlKey && ev.key == "Enter") doGenerate(); });
+
+  btn_showDict.onclick = () => { ta_text.value = trie.toString(); };
+  btn_showTrie.onclick = () => {
+    if (sel_display.selectedIndex == 1) for (let k of ["\n", "\r"]) trie.remove([k]); // remove-CRLF tokenize feat.
+    let customFmt = customFmtRef[0];
+    trie.formatWith(customFmt); ta_text.value = customFmt.toString(); customFmt.clear();
+  };
+
+  btn_readDict.onclick = () => doLoadDict(ta_text.value.trim(), sel_mode.value);
+  btn_revDict.onclick = () => doRevDict(sel_mode);
+  const doLoadDict = (text:string, dict_name:string) => {
+    let table = splitTrieData(text);
+    let failedKs = [];
+    for (let [k, v] of table) {
+      if (v === undefined) failedKs.push(k);
+      else trie.set(chars(k), v);
+    }
+    if (failedKs.length != 0) alert(`条目导入失败：${failedKs.join("、")} ，请按每行 k${delimiters[1]}v 输入`);
+    alert(`已导入 ${table.length-failedKs.length} 条词关系到词典 ${dict_name}`);
+  };
+  const doRevDict = (e:HTMLSelectElement) => {
+    let name = e.value;
+    if (name.startsWith('~')) { e.value = name.substr(1); setTrie(); } // DOM 不能把 .value= 一起 onchange 真麻烦
+    else {
+      let rName = `~${name}`;
+      const ok = () => { e.value = rName; setTrie(); };
+      if (!dict.has(rName)) { prepLoadConfig(); loadConfig(`?${rName}=~:${name}`).then(ok); } // rev-trie feat.
+      else ok();
+    }
+  };
+
+  const doGenerate = () => { clearChild(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
+  btn_gen.addEventListener("click", doGenerate); // nth=0
+
+  await loadConfig(location.search);
+  if (ta_text.value.length != 0) doGenerate();
+});
+
+function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_display: HTMLElement) {
   const featExpander = () => {
     const toggle = (ev:Event) => { 
       const css = "abbr-expand";
@@ -111,16 +181,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const addAbbrExpand = () => {
       for (let abbr of div_out.getElementsByTagName("abbr")) abbr.onclick = toggle;
     };
-    btn_gen.addEventListener("click", addAbbrExpand); addAbbrExpand(); // nth=1
-  };
-  const featConfiger = () => {
-    const e = btn_revDict;
-    let btn_import = element("button", withText("导入参数"));
-    btn_import.onclick = () => { prepLoadConfig(); loadConfig(ta_text.value); };
-    e.parentNode.insertBefore(btn_import, e.nextSibling);
-    let btn_loadRendered = element("button", withText("叠改已渲染文本"));
-    btn_loadRendered.onclick = () => { ta_text.value = div_out.innerText; generate(); };
-    e.parentNode.insertBefore(btn_loadRendered, e.nextSibling);
+    btn_update.addEventListener("click", addAbbrExpand); addAbbrExpand(); // nth=1
   };
   const feat2ndTokenize = () => {
     const wrapRender = () => {
@@ -130,7 +191,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let accumHTML = elem.innerHTML; // 2nd tokenize feat
         let lastV = v;
         while (true) {
-          let newV = Trie.joinValues(tokenize(lastV));
+          let newV = joinValues(tokenize(lastV), SEP);
           if (newV == null) break;
           accumHTML = accumHTML.replace(lastV, newV); // replace val only
           lastV = newV;
@@ -140,15 +201,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       };
     }; sel_display.addEventListener("change", wrapRender); wrapRender(); // nth=1
   };
-  registerOneshotClicks(helem("output").getElementsByTagName("button"), [featExpander, featConfiger, feat2ndTokenize]);
+  return [featExpander, null, feat2ndTokenize];
+}
 
+function initDisplayOnChange(sel_display: HTMLSelectElement, customFmtRef: [RecurStructFmt]) {
   const bracketFmt = new BracketFmt(["{", "}"], ", ");
   const indentFmt = new IndentationFmt();
-  let customFmt: RecurStructFmt;
-
   const setDisplay = () => { //v two <select> s.
     let vSel = sel_display.value;
-    customFmt = vSel.endsWith(")")? indentFmt : bracketFmt;
+    customFmtRef[0] = vSel.endsWith(")")? indentFmt : bracketFmt;
     switch (vSel) {
       case "上标(Ruby notation)": customHTML = (k, v) => element("ruby", withDefaults(), document.createTextNode(k), element("rt", withText(v))); break;
       case "翻转上标": customHTML = (k, v) => element("ruby", withDefaults(), document.createTextNode(v), element("rt", withText(k))); break;
@@ -168,55 +229,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     } //^ update vars.
   };
   sel_display.addEventListener("change", setDisplay); setDisplay(); // nth=0
-  sel_mode.onchange = setTrie;
-  prepLoadConfig();
+}
 
-  createIME(ta_word, () => trie, abb_word, list_possibleWord);
-  abb_word.onclick = () => { ta_text.value += abb_word.textContent; ta_word.value = ""; };
-
-  num_fontSize.onchange = () => { div_out.style.fontSize = `${num_fontSize.value}pt`; };
-  btn_showDict.onclick = () => { ta_text.value = trie.toString(); };
-  btn_showTrie.onclick = () => {
-    if (customFmt == bracketFmt) for (let k of ["\n", "\r"]) trie.remove(k); // remove-CRLF tokenize feat.
-    customFmt.clear(); trie.formatWith(customFmt); ta_text.value = customFmt.toString();
-  };
-  btn_readDict.onclick = () => {
-    let table = splitTrieData(ta_text.value.trim());
-    let failedKs = [];
-    for (let [k, v] of table) {
-      if (v == undefined) failedKs.push(k);
-      else trie.set(k, v);
-    }
-    if (failedKs.length != 0) alert(`条目导入失败：${failedKs.join("、")} ，请按每行 k${delimiters[1]}v 输入`);
-    alert(`已导入 ${table.length-failedKs.length} 条词关系到词典 ${sel_mode.value}`);
-  };
-  btn_revDict.onclick = () => {
-    let name = sel_mode.value;
-    if (name.startsWith('~')) { sel_mode.value = name.substr(1); setTrie(); } // DOM 不能把 .value= 一起 onchange 真麻烦
-    else {
-      let rName = `~${name}`;
-      const ok = () => { sel_mode.value = rName; setTrie(); };
-      if (!(rName in dict)) { prepLoadConfig(); loadConfig(`?${rName}=~:${name}`).then(ok); } // rev-trie feat.
-      else ok();
-    }
-  };
-
-  const generate = () => { clearChild(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
-  btn_gen.addEventListener("click", generate); // nth=0
-
-  await loadConfig(location.search);
-  if (ta_text.value.length != 0) generate();
-});
-
-function createIME(tarea: HTMLTextAreaElement, trie: () => STrie, e_fstWord: HTMLElement, ul_possibleWord: HTMLUListElement) {
+function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_trie: () => STrie, e_fstWord: HTMLElement, ul_possibleWord: HTMLUListElement) {
   const handler = (ev:InputEvent) => { // 输入法（迫真）
     let wordz: Iterator<PairString>;
     let isDeleting = ev.inputType == "deleteContentBackward";
     let input = tarea.value; if (input == "") return; // 别在清空时列出全部词！
     try {
-      let point = trie().path(input);
+      let point = get_trie().path(chars(input));
       if (isDeleting) e_fstWord.textContent = point.value || "见下表"; // 靠删除确定前缀子串
-      wordz = point[Symbol.iterator]();
+      wordz = joinIterate(point)[Symbol.iterator]();
     } catch (e) { e_fstWord.textContent = "?"; return; }
     if (!isDeleting) {
       let possible = wordz.next().value; // 显示 longest word
@@ -227,12 +250,17 @@ function createIME(tarea: HTMLTextAreaElement, trie: () => STrie, e_fstWord: HTM
     }
     clearChild(ul_possibleWord); // 此外？的 possible list
     let word; while (!(word = wordz.next()).done) {
-      ul_possibleWord.appendChild(element("li", withDefaults(),
+      let item = element("li", withDefaults(),
         element("b", withText(word.value[0])), element("a", withText(word.value[1]))
-      ));
+      );
+      item.firstChild.addEventListener("click", () => {
+        op_out(item.lastChild.textContent);
+      });
+      ul_possibleWord.appendChild(item);
     } // 不这么做得加 DownlevelIteration
   };
   tarea.oninput = handler;
+  e_fstWord.onclick = () => { op_out(e_fstWord.textContent); tarea.value = ""; };
 }
 
 function renderTokensTo(e: HTMLElement, tokens: TokenIter) {
@@ -248,9 +276,6 @@ function renderTokensTo(e: HTMLElement, tokens: TokenIter) {
   }
 } //^ 或许咱不必处理换行兼容 :笑哭:
 
-function matchAll(re: RegExp, s: string): RegExpExecArray[] {
-  return s.match(re)?.map(part => { re.lastIndex = 0; return re.exec(part) }) ?? [];
-}
 const PAT_URL_PARAM = /[?&]([^=]+)=([^&;#\n]+)/g;
 const PAT_GREP = /(.)=([^=]+)=(.*)$/g;
 const PAT_CSS_ARGUMENT = /\/\*\[\s*(\d+)\s*\]\*\//g;
@@ -259,7 +284,7 @@ async function referText(desc: string) {
   try { return isUrl? await xhrReadText(desc.substr(1)) : desc; }
   catch (req) { alertFailedReq(req); return ""; }
 }
-async function readDict(query: string, on_load: (name:string, trie:STrie) => any) { // generator+async 是不是有点 cutting edge 了…
+async function readDict(query: string, on_load: (name:string, trie:()=>STrie) => any) { // generator+async 是不是有点 cutting edge 了…
   for (let m of matchAll(PAT_URL_PARAM, query)) {
     let name = decodeURIComponent(m[1]);
     let value = decodeURIComponent(m[2]);
@@ -299,58 +324,51 @@ async function readDict(query: string, on_load: (name:string, trie:STrie) => any
         break;
       default:
         let trie = await readTrie(value);
-        for (let k in newlines) trie.set(k, null);
         on_load(name, trie);
     }
   }
 }
-function reduceToFirst<T>(xs: T[], op: (fst:T, item:T) => any): T {
-  let fst = xs[0];
-  for (let i=1; i < xs.length; i++) op(fst, xs[i]);
-  return fst;
-}
-async function readTrie(expr: string) {
-  const shadowKey = (key: string, a: object, b: object) => { if (b[key] != undefined) a[key] = b[key]; };
+
+async function readTrie(expr: string): Promise<()=>STrie> {
+  const shadowKey = (key: string, a: SMap, b: SMap) => { if (b.has(key)) a.set(key, b.get(key)); };
   let sources = await Promise.all(expr.split('+').map(readTriePipePlus));
-  let fst = reduceToFirst(sources, (merged, it) => { for (let k in it) shadowKey(k, merged, it); });
-  let trie: STrie = new Trie;
-  for (let k in fst) trie.set(k, fst[k]);
-  return trie;
+  let fst = reduceToFirst(sources, (merged, it) => { for (let k of it.keys()) shadowKey(k, merged, it); });
+  for (let k in newlines) fst.set(k, null); // append CRLF
+  let loaded: STrie = null;
+  return () => { if (loaded == null) { loaded = Trie.fromMap(fst); } return loaded; } // lazy-load trie feat.
 }
 async function readTriePipePlus(expr: string) { // tokenize-dict feat.
   let piped = await Promise.all(expr.split(">>").map(readTriePipe));
   return reduceToFirst(piped, (accum, rules) => {
-    let trie: STrie = new Trie;
-    for (let k in rules) trie.set(k, rules[k]);
-    if (accum[""] == undefined) delete accum[""];
-    for (let k in accum) {
-      let v = Trie.joinValues(trie.tokenize(accum[k]));
-      if (v != null) accum[k] = v;
+    if (accum.get("") === undefined) accum.delete("");
+    for (let [k, v] of accum.entries()) {
+      if (v == null) continue;
+      accum[k] = joinValues(tokenizeTrie(Trie.fromMap(rules), v), SEP);
     }
   });
 }
 async function readTriePipe(expr: string) {
   let pipes = await Promise.all(expr.split('>').map(readTrieData));
   return reduceToFirst(pipes, (map, data) => {
-    for (let k in map) { let gotV = data[map[k]]; if (gotV != undefined) map[k] = gotV; }
+    for (let [k, v] of map.entries()) { let gotV = data.get(v); if (gotV !== undefined) map.set(k, gotV); }
   });
 }
-async function readTrieData(expr: string): Promise<object> {
+async function readTrieData(expr: string): Promise<SMap> {
   let inverted = expr.startsWith('~');
   let path = inverted? expr.substr(1) : expr;
   let data: string[][];
+  let map: SMap = new Map;
   if (path.startsWith(':')) {
     let name = path.substr(1);
-    if (name in dict) { data = [...dict[name] as STrie]; }
-    else { alert(`No trie ${name} in dict`); return {}; }
+    if (dict.has(name)) { data = [...joinIterate(dict.get(name)() as STrie)]; }
+    else { alert(`No trie ${name} in dict`); return map; }
   } else {
     try { // download it.
       let text = await xhrReadText(path);
       data = splitTrieData(text);
-    } catch (req) { alertFailedReq(req); return {}; }
+    } catch (req) { alertFailedReq(req); return map; }
   }
-  let obj = {};
-  if (!inverted) for (let [k, v] of data) obj[k] = v; // ~invert feat.
-  else for (let [k, v] of data) obj[v] = k;
-  return obj;
+  if (!inverted) for (let [k, v] of data) map.set(k, v); // ~invert feat.
+  else for (let [k, v] of data) map.set(v, k);
+  return map;
 }

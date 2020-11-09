@@ -1,5 +1,5 @@
 rm -rf data/
-mkdir data && touch data/.gitkeep
+mkdir data
 
 if [[ $1 != "clean" ]]; then
 node uniHan_pinyin.js

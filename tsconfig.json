@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "target": "ES5",
-    "lib": ["es5", "dom"],
+    "target": "ES6",
+    "lib": ["ES2015", "DOM", "DOM.Iterable"],
     "outDir": "build",
-    "declarations": false,
+    "declaration": false,
     "sourceMap": false
   },
   "include": ["src/**.ts"]

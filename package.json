@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "description": "Little Trie-data based dictionary that translates webpages with wide features",
   "scripts": {
-    "build": "npm run compile && npm run build:copy",
+    "build": "tsc && npm run build:copy",
     "clean": "rm -rf manifest.json build/ && . dictGen/build.sh clean",
-    "compile": "tsc",
-    "build:copy": "mkdir build/icons/ && node gen_manifest.js && cp -r manifest.json README.md build/",
+    "build:copy": "cp -r resources/* build/ && mkdir build/icons/ && node gen_manifest.js && mv manifest.json build/",
     "build:zip": "rm -f build.zip && (cd ./build && zip -r ../build.zip .)"
   },
   "author": "duangsuse",

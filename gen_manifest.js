@@ -28,7 +28,7 @@ const manifest = k_ => { return {
   },
   background: {
     scripts: [
-      "src/background.js"
+      "background.js"
     ],
     persistent: true
   },
