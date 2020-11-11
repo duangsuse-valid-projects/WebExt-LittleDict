@@ -5,6 +5,7 @@
         <title>Tokenizer 分词器</title>
         <meta name="description" content="利用建-值对应字典进行组合、处理文本序列、查询单词" />
         <script defer src="triedata.js"></script>
+        <script defer src="libTokenizer.js"></script>
         <script defer src="Tokenizer.js"></script>
         <style>
         .recognized { text-rendering: optimizeLegibility; }
@@ -60,6 +61,10 @@
     <dt>font-size</dt><dd>渲染结果字体大小，比如 50px, 25pt</dd>
     <dt>style</dt>
     <dd>加载另外的 <abbr title="层叠样式表">CSS</abbr> 样式链接(':' 起始)，或者直接的文本</dd>
+    <dt>script</dt><dd>加载一段 JavaScript 脚本代码，需要启用相应特性</dd>
+    <dd>url-prefix</dd><dt>指示后方加载链接的地址前缀</dt>
+    <dd>import-conf</dd><dt>仅导入字典，但不创建菜单项（例如，翻译字典名时可以用）</dt>
+    <dd>mode-html</dd><dt>加载自定义 K-V HTML 渲染模板，需要启用脚本特性</dt>
     <dt><var>name</var></dt><dd>创建名叫 <var>name</var> 的字典，其参数可以用 (a+b) (a>>b) (a>b) (~a)
 即 以b之值优先-合并、以b分词替换a的所有值、以b解释a的所有值、反向化a 的形式组合。
 默认是链接，加 ':' 引用已加载字典；你可以覆盖之前的字典名</dd>
@@ -68,12 +73,27 @@
 虚下划线的东西看不了？<button>启用点击展开</button>
 感觉自己看懂了比较牛逼？<button>添加用来添加参数的按钮</button>
 字典内建的(>) 二层映射甚至连 (>>) 『按值分词替换』操作都<abbr title="注意，它对添加释义模式无效">不够用</abbr>？<button>启用二次分词功能</button>
+二次分词不够花？<abbr title="此功能必要启用下项特性">信息量不够大？</abbr><button>使用二次分词递归模式</button>
+支持字典<abbr title="浏览器插件可在任何启用分词的页面里注入脚本，尽量避免在金融/隐私页面使用！">内联HTML/加载脚本</abbr>，<button><span style="color:red">注意安全！</span></button>
 
 <details>
     <summary>问答：按值分词替换和二次分词有什么区别</summary>
 一般而言字典都是针对两种语言(如平假-罗马字)替换的，所以在要增添对应第三种语言(如中文)时用(+)号，达到 <i>平假->罗马字->汉字</i> 时二重分词没问题。
 可是，如果是在替换方言，语言间的符号有大量重叠，此时用(+)号就容易导致覆盖，可以直接叠改替换 (a>>b>>c) 里字典 a 的所有值。
 </details>
+
+<details>
+    <summary>问答：反向映射后冲突的键会怎么样</summary>
+举个例子，如果把平假和片假合并，它们之中肯定会有发音冲突的部分，那么发音引用的会是哪个？
+在此软件里这个行为不作保证，但是，就这个例子而言是后加的片假名优先。
+</details>
+
+<div id="trie-ops">
+<input op="get" placeholder="完整输入以获取含义" /><span></span>
+<input op="getPrefix" placeholder="输入前缀以获取含义" /><span></span>
+<input op="remove" placeholder="删除前缀下所有词条项" /><span></span>
+<input op="makePath" placeholder="建立此路径（仅用于测试，无意义）" /><span></span>
+</div>
         </div></pre></section> <!-- 没必要加 pre 因为咱自动处理 CRLF 换行跨平台（划掉），不还是可以加 -->
     </body>
 </html>

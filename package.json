@@ -4,9 +4,9 @@
   "description": "Little Trie-data based dictionary that translates webpages with wide features",
   "scripts": {
     "build": "tsc && npm run build:copy",
-    "clean": "rm -rf manifest.json build/ && . dictGen/build.sh clean",
-    "build:copy": "cp -r resources/* build/ && mkdir build/icons/ && node gen_manifest.js && mv manifest.json build/",
-    "build:zip": "rm -f build.zip && (cd ./build && zip -r ../build.zip .)"
+    "clean": "rm -rf manifest.json build.zip build/ && . dictGen/build.sh clean",
+    "build:copy": "cp -r resources/* build/ && mkdir -p build/icons/ && node gen_manifest.js build/_locales/ && mv manifest.json build/",
+    "zip": "rm -f build.zip && (cd ./build && zip -r ../build.zip .)"
   },
   "author": "duangsuse",
   "license": "GPL-3.0",

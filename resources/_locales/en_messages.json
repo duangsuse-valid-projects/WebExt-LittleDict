@@ -1,0 +1,16 @@
+{
+  "actionTitle": "Lookup Little Dict",
+  "extDescription": "Little Trie-data based dictionary that translates webpages with wide features",
+  "selMode": "Use Dictionary: ",
+  "selDisp": "Select Format: ",
+  "numFontSize": "Translated Font Size: ",
+  "isKeepFmt": "Keep Layout? ",
+  "do-revDict.text": "Reverse Dict",
+  "ta-ime.placeholder": "Input word prefix to get meaning",
+  "do-translatePage.text": "Page Translate",
+  "abbr-appSite.text": "Select App Site",
+  "abbr-appSite.title": "You can choose an online version to make a link able to share",
+  "input-params.placeholder": "Input Tokenizer URL params",
+  "do-saveOverride.text": "Save current option override",
+  "ta-customKv.placeholder": "Input custom K=V pairs that applies to all dictionaries"
+}
