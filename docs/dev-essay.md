@@ -123,3 +123,41 @@ for (let [k, v] of path.entries()) {
 原来一些 bug 是可以导致本来错写的东西看起来正常运行的…… 现实工程还是难，各种条件各种程序路径和数据变化
 
 算是了解了，日语 は 作助词读 wa ，难怪几乎都这么唱……
+
+今天给输入法实现解词我又删了多余代码
+
+```ts
+const shadowMaxLen = (t:STrie, ks:string[], v:string) => {
+  let v0 = ""; // len=0
+  try { v0 = t.get(ks); } catch (ex) {}
+  if (v.length > v0.length) t.set(ks, v);
+};
+  shadowMaxLen(wordChars, chars(possible[1]).reverse(), possible[0]); // 保存候选组成，覆盖取最长的
+  shadowMaxLen(charsWord, chars(possible[0]).reverse(), possible[1]);
+```
+
+总结一下，这次编程中错误是由于不熟悉 handler 变量更新和合并两层的递归导致的，下次一定注意。
+
+已经是第二个星期，做得真慢，不想写了（做Android移植什么的真是痴人说梦，尤其是不太会写构建脚本）可还是不得不弄这个浏览器插件。
+
+实现了递归 format 使项目更有使用意义了，但是 IME 的可用化更新还差最后一步，老挂调试器看索引变量计算真是麻烦。
+
+在本地调试项目需要 CORS ， `jekyll serve` 不支持就弄了个基于 Sinatrarb 的小服务。
+
+开始觉得 `set :pubilc_folder, Dir.pwd` 或 `__dir__` 再 `before { puts response }; after { response.headers['a'] = '1'}` 什么的可以用，发现不行只能利用路由框架了。
+
+```ruby
+require 'sinatra'; set :static, false; get('*') { headers 'Access-Control-Allow-Origin' => '*'; fp=request.path; if fp.end_with?'.js'; response.headers['Content-Type']='text/javascript'; end; body File.read('.'+fp) }
+```
+
+然后在 bash 里 `ruby -e " "` 就好了，真麻烦。
+
+嗯又发现一段错的
+
+```js
+// createIME
+    let evIns = new InputEvent("input", {inputType: "insertText", data: text});
+    tarea.dispatchEvent(evIns);
+```
+
+直到完成，IME 都不是很成熟（虽然比起初衷已经拓展太多），比如结合原有自动填最长候选时如果用户直接空格会导致选区合并、覆盖前一字，或是批量删除会导致修改区计算错误之类的，但总体上已经可以使用，没有导致无法输入的bug。

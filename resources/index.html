@@ -38,7 +38,7 @@
                     <button id="do-reverse">反转当前词库</button>
                 </div>
             </div>
-            <textarea id="text-word" placeholder="输入要查询的单词前缀，立即取得对应义/表"></textarea>：<abbr id="abb-word" title="它是这个意思"></abbr>
+            <textarea id="text-word" placeholder="输入要查询的单词前缀，立即取得对应义/表；空格选词回车完成"></textarea>：<abbr id="abb-word" title="它是这个意思"></abbr>
             <ul id="list-possibleWord"></ul>
         </details>
         <section><pre><div id="output">
@@ -52,7 +52,7 @@
     <dt>conf</dt>
     <dd>加载符合 ?k=v 或 &k=v 格式的参数表，参数表内亦可用此参数另再加载</dd>
     <dt>feat</dt>
-    <dd>等于自动点击文档的第 N 个(从0数)附加特性按钮</dd>
+    <dd>等于自动点击文档的第 N 个(从0数)附加特性按钮。注意，只在 text 参数前有效</dd>
     <dt>inword-grep</dt>
     <dd>设置为 c=re=subst 的格式，在某单词的前缀匹配中如正处理 c 则以 re 匹配替换在解析内容。
 如果置换为 c 则优化为跳过匹配、为 %00 则不分词匹配，注意只有单词前缀匹配才替换！</dd>

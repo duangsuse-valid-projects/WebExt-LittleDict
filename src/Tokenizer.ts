@@ -14,36 +14,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     btn_readDict = helem("do-readDict"),
     btn_revDict = helem("do-reverse");
 
-  let dlStatus: HTMLOptionElement;
-  const setTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)() : noTrie; };
+
+  const hasText = () => ta_text.value.length != 0;
+  const doGenerate = () => { clearChild(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
+  const refreshTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)() : noTrie; };
+
+  let dlStatus = element("option", withText("待从配置加载！"));
   const prepLoadConfig = () => { // conf-add feat.
-    dlStatus = element("option", withText("待从配置加载！"));
     sel_mode.appendChild(dlStatus);
-    setTrie(); // noTrie
+    refreshTrie(); // noTrie
   };
   const loadConfig = async (url: string) => {
-    let isImportOnly = hasFlag("importingConf");
-    await readDict(url, (k, mk_trie) => {
-      dlStatus.textContent = `已下载 ${k}…`; // fuzzy design
+    await readDictOptions(url, (k, mk_trie, opts) => {
+      dlStatus.textContent = `${k}…`; // fuzzy design
       let isFirstDefine = !dict.has(k);
-      dict.set(k, mk_trie); if (isImportOnly) { return; }
+      dict.set(k, mk_trie); if (opts?.["isImport"] == true/*loop-updating*/) { return; } // import-conf feat
       if (isFirstDefine) {
         sel_mode.appendChild(element("option", withText(k)));
       } // 加字典选项 若还未存 feat appendOptUnion.
-      setTrie(); if (trie !== noTrie) { doGenerate(); } // start rendering as early as possible
+      if (hasText() && sel_mode.value.startsWith(k)) {
+        sel_mode.value = k; refreshTrie(); doGenerate();
+      } // start rendering as early as possible
     });
     sel_mode.removeChild(dlStatus);
-    setTrie(); // first trie
+    refreshTrie(); refreshIME(); // first trie
   };
 
   const featConfiger = () => { //v misc in-helpDoc button event, dyn generated.
-    const e = btn_revDict;
-    let btn_import = element("button", withText("导入参数"));
-    btn_import.onclick = () => { prepLoadConfig(); loadConfig(ta_text.value); };
-    e.parentNode.insertBefore(btn_import, e.nextSibling);
-    let btn_loadRendered = element("button", withText("叠改已渲染文本"));
-    btn_loadRendered.onclick = () => { ta_text.value = div_out.innerText; doGenerate(); };
-    e.parentNode.insertBefore(btn_loadRendered, e.nextSibling);
+    const insertAfter = (e:HTMLElement, e1:HTMLElement) => { e.parentNode.insertBefore(e1, e.nextSibling); };
+    insertAfter(sel_display, element("button", configured(
+      withText("导入参数"),
+      withClicked(() => { prepLoadConfig(); loadConfig(ta_text.value); })
+    )));
+    insertAfter(sel_display, element("button", configured(
+      withText("叠改已渲染文本"),
+      withClicked(() => { ta_text.value = div_out.innerText; doGenerate(); })
+    )));
   };
   let featureEnablers = initFeatureEnablers(btn_gen, div_out, sel_display);
   featureEnablers[1] = featConfiger;
@@ -52,11 +58,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   let customFmtRef: [RecurStructFmt] = [undefined];
   initOnChangeDisplay(sel_display, customFmtRef);
 
-  sel_mode.onchange = setTrie;
+  sel_mode.addEventListener("change", refreshTrie); // nth=0
   prepLoadConfig();
-  createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
+  let refreshIME = createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
+  addCallNoargEventListener(sel_mode, "change", refreshIME); // with noTrie, nth=1
 
-  document.getElementById("trie-ops").childNodes.forEach(function(e:HTMLInputElement) {
+  helem("trie-ops")?.childNodes?.forEach(function(e:HTMLInputElement) {
     if (e.nodeType == Node.TEXT_NODE) return;
     var eDisp = e.nextSibling; var opName = e.getAttribute("op");
     e.onchange = function() { try { eDisp.textContent = trie[opName].apply(trie, [e.value]); } catch (ex) { eDisp.textContent = String(ex); } };
@@ -81,36 +88,33 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (v === undefined) failedKs.push(k);
       else trie.set(chars(k), v);
     }
-    if (failedKs.length != 0) alert(`Failed: ${failedKs.join(", ")};\nPlease input like k${delimiters[1]}v.`);
-    alert(`Imported ${table.length-failedKs.length} entries to "${dict_name}"`);
+    if (failedKs.length != 0) alert(`导入键： ${failedKs.join("、")} 失败。\n请以每行 k${delimiters[1]}v 输入`);
+    alert(`已导入 ${table.length-failedKs.length} 条词关系至 "${dict_name}"`);
   };
   const doRevDict = (e:HTMLSelectElement) => {
     let name = e.value;
-    if (name.startsWith('~')) { e.value = name.substr(1); setTrie(); } // DOM 不能把 .value= 一起 onchange 真麻烦
+    if (name.startsWith('~')) { e.value = name.substr(1); refreshTrie(); refreshIME(); } // DOM 不能把 .value= 一起 onchange 真麻烦
     else {
       let rName = `~${name}`;
-      const ok = () => { e.value = rName; setTrie(); };
+      const ok = () => { e.value = rName; refreshTrie(); refreshIME(); };
       if (!dict.has(rName)) { prepLoadConfig(); loadConfig(`?${rName}=~:${name}`).then(ok); } // rev-trie feat.
       else ok();
     }
   };
 
-  const doGenerate = () => { clearChild(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
-  btn_gen.addEventListener("click", doGenerate); // nth=0
-
   await loadConfig(location.search);
-  if (ta_text.value.length != 0) doGenerate();
+  btn_gen.addEventListener("click", doGenerate); // nth=0
+  if (hasText()) doGenerate();
 });
 
 function renderTokensTo(e: HTMLElement, tokens: TokenIter) {
   for (let [name, desc] of tokens) {
-    if (desc == null) {
-      if (name in newlines) e.appendChild(document.createElement("br"));
-      else e.appendChild(document.createTextNode(name)); // 直接从 JS 堆提交给 DOM 吧，他们会处理好拼接
+    if (desc == null) { // 直接从 JS 堆提交给 DOM 吧，他们会处理好拼接
+      e.appendChild((name in newlines)? document.createElement("br") : document.createTextNode(name));
     } else {
       let eRecog = customHTML(name, desc);
       eRecog.classList.add("recognized");
       e.appendChild(eRecog);
     }
-  }
-} //^ 或许咱不必处理换行兼容 :笑哭:
+  } //^ 或许咱不必处理换行兼容 :笑哭:
+}

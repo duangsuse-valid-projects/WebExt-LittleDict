@@ -50,17 +50,18 @@ class Trie<K, V> implements Iterable<[K[], V]> {
     if (pvalue === undefined) { throw Error(desc("when", ks[ks.length -1])); }
     return pvalue;
   }
-  getPrefix(ks: K[]): V|null {
+  getPrefix(ks: K[]): [number, V]|null {
     var point = this.routes;
+    var nK = 0;
     for (let c of ks) {
       let pvalue = point.get(c);
       let pnext = Trie.asBin(pvalue);
-      if (pnext !== undefined) { point = pnext; }
-      else if (pvalue !== undefined) { return pvalue as V; }
+      if (pnext !== undefined) { point = pnext; nK += 1; }
+      else if (pvalue !== undefined) { return [nK+1, pvalue as V]; }
       else { break; } // just like [tokenize] below
     }
     let pv = Trie.valueAt(point);
-    return (pv !== undefined)? pv : null;
+    return (pv !== undefined)? [nK, pv] : null;
   }
   get(ks: K[]): V {
     let v = Trie.valueAt(this._getPath(ks));
@@ -135,7 +136,7 @@ class Trie<K, V> implements Iterable<[K[], V]> {
 }
 
 function chars(s: string): string[] { return [...s]; }
-function* joinIterate<V>(iter:Iterable<[any[], V]>): Iterable<[string, V]> {
+function* joinKeyIterate<V>(iter:Iterable<[any[], V]>): Iterable<[string, V]> {
   for (let [ks, v] of iter) yield [ks.join(""), v];
 }
 function joinValues(toks: Iterable<[string, any?]>, sep: string) {
