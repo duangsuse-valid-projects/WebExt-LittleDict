@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     list_possibleWord = helem<HTMLUListElement>("list-possibleWord"),
     div_out = helem("output"),
     sel_mode = helem<HTMLSelectElement>("select-mode"), // 选词典
-    sel_display = helem<HTMLSelectElement>("select-display"), // 选渲染
+    sel_format = helem<HTMLSelectElement>("select-format"), // 选渲染
     btn_gen = helem("do-generate"),
     num_fontSize = helem<HTMLInputElement>("slider-fontsize"),
     btn_showDict = helem("do-showDict"),
@@ -14,67 +14,61 @@ document.addEventListener("DOMContentLoaded", async () => {
     btn_readDict = helem("do-readDict"),
     btn_revDict = helem("do-reverse");
 
-
   const hasText = () => ta_text.value.length != 0;
-  const doGenerate = () => { clearChild(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
-  const refreshTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)() : noTrie; };
+  const doGenerate = () => { clearChilds(div_out); renderTokensTo(div_out, tokenize(ta_text.value)); };
+  var refreshIME: ()=>void;
+  const refreshTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)()/*lazy*/ : noTrie; refreshIME(); };
 
-  let dlStatus = element("option", withText("待从配置加载！"));
-  const prepLoadConfig = () => { // conf-add feat.
+  let dlStatus = element("option", withText("待从配置加载！")); // re-used DOM obj.
+  const loadConfig = async (url: string) => { // conf-add feat.
     sel_mode.appendChild(dlStatus);
-    refreshTrie(); // noTrie
-  };
-  const loadConfig = async (url: string) => {
     await readDictOptions(url, (k, mk_trie, opts) => {
-      dlStatus.textContent = `${k}…`; // fuzzy design
+      dlStatus.textContent = `已下载 ${k}…`;
       let isFirstDefine = !dict.has(k);
-      dict.set(k, mk_trie); if (opts?.["isImport"] == true/*loop-updating*/) { return; } // import-conf feat
+      dict.set(k, mk_trie); if (opts?.["isImport"] == true) { return; } // import-conf feat
       if (isFirstDefine) {
         sel_mode.appendChild(element("option", withText(k)));
-      } // 加字典选项 若还未存 feat appendOptUnion.
-      if (hasText() && sel_mode.value.startsWith(k)) {
-        sel_mode.value = k; refreshTrie(); doGenerate();
-      } // start rendering as early as possible
+      } // 加字典选项 若还未存 appendOptUnion feat.
+      if (hasText() && preferMode == k) { trie = mk_trie(); doGenerate(); } // start rendering as early as possible
     });
     sel_mode.removeChild(dlStatus);
-    refreshTrie(); refreshIME(); // first trie
+    refreshTrie(); // first trie
   };
 
+  const insertAfter = (e:HTMLElement, e1:HTMLElement) => { e.parentNode.insertBefore(e1, e.nextSibling); };
   const featConfiger = () => { //v misc in-helpDoc button event, dyn generated.
-    const insertAfter = (e:HTMLElement, e1:HTMLElement) => { e.parentNode.insertBefore(e1, e.nextSibling); };
-    insertAfter(sel_display, element("button", configured(
+    insertAfter(sel_format, element("button", configured(
       withText("导入参数"),
-      withClicked(() => { prepLoadConfig(); loadConfig(ta_text.value); })
+      withClicked(() => { loadConfig(ta_text.value); })
     )));
-    insertAfter(sel_display, element("button", configured(
+    insertAfter(sel_format, element("button", configured(
       withText("叠改已渲染文本"),
       withClicked(() => { ta_text.value = div_out.innerText; doGenerate(); })
     )));
   };
-  let featureEnablers = initFeatureEnablers(btn_gen, div_out, sel_display);
+  let featureEnablers = initFeatureEnablers(btn_gen, div_out, sel_format);
   featureEnablers[1] = featConfiger;
   registerOneshotClicks(helem("output").getElementsByTagName("button"), featureEnablers);
+  num_fontSize.onchange = () => { div_out.style.fontSize = `${num_fontSize.value}pt`; }; // convenient shortcut methods
 
   let customFmtRef: [RecurStructFmt] = [undefined];
-  initOnChangeDisplay(sel_display, customFmtRef);
+  initOnChangeFormat(sel_format, customFmtRef);
 
-  sel_mode.addEventListener("change", refreshTrie); // nth=0
-  prepLoadConfig();
-  let refreshIME = createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
-  addCallNoargEventListener(sel_mode, "change", refreshIME); // with noTrie, nth=1
+  sel_mode.appendChild(dlStatus);
+  dlStatus.textContent = "在初始化…";
+  sel_mode.onchange = refreshTrie;
+  refreshIME = createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
 
   helem("trie-ops")?.childNodes?.forEach(function(e:HTMLInputElement) {
     if (e.nodeType == Node.TEXT_NODE) return;
     var eDisp = e.nextSibling; var opName = e.getAttribute("op");
-    e.onchange = function() { try { eDisp.textContent = trie[opName].apply(trie, [e.value]); } catch (ex) { eDisp.textContent = String(ex); } };
+    e.onchange = function() { try { eDisp.textContent = String(trie[opName].apply(trie, [e.value])); } catch (ex) { eDisp.textContent = String(ex); } };
   }); // actions for quick <input> s
 
-  num_fontSize.onchange = () => { div_out.style.fontSize = `${num_fontSize.value}pt`; }; // convenient shortcut methods
   ta_text.addEventListener("keydown", (ev:KeyboardEvent) => { if (ev.ctrlKey && ev.key == "Enter") doGenerate(); });
-
   btn_showDict.onclick = () => { ta_text.value = trie.toString(); };
   btn_showTrie.onclick = () => {
-    if (sel_display.selectedIndex == 1) for (let k of ["\n", "\r"]) trie.remove([k]); // remove-CRLF tokenize feat.
+    if (sel_format.selectedIndex == 1) for (let k of ["\n", "\r"]) trie.remove([k]); // remove-CRLF tokenize feat.
     let customFmt = customFmtRef[0];
     trie.formatWith(customFmt); ta_text.value = customFmt.toString(); customFmt.clear();
   };
@@ -82,8 +76,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   btn_readDict.onclick = () => doLoadDict(ta_text.value.trim(), sel_mode.value);
   btn_revDict.onclick = () => doRevDict(sel_mode);
   const doLoadDict = (text:string, dict_name:string) => {
-    let table = splitTrieData(text);
-    let failedKs = [];
+    let table = splitTrieData(text); let failedKs = [];
     for (let [k, v] of table) {
       if (v === undefined) failedKs.push(k);
       else trie.set(chars(k), v);
@@ -93,15 +86,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   const doRevDict = (e:HTMLSelectElement) => {
     let name = e.value;
-    if (name.startsWith('~')) { e.value = name.substr(1); refreshTrie(); refreshIME(); } // DOM 不能把 .value= 一起 onchange 真麻烦
+    if (name.startsWith('~')) { e.value = name.substr(1); refreshTrie(); } // DOM 不能把 .value= 一起 onchange 真麻烦
     else {
       let rName = `~${name}`;
-      const ok = () => { e.value = rName; refreshTrie(); refreshIME(); };
-      if (!dict.has(rName)) { prepLoadConfig(); loadConfig(`?${rName}=~:${name}`).then(ok); } // rev-trie feat.
+      const ok = () => { e.value = rName; refreshTrie(); };
+      if (!dict.has(rName)) loadConfig(`?${rName}=~:${name}`).then(ok); // rev-trie feat.
       else ok();
     }
   };
 
+  sel_mode.removeChild(dlStatus); // added near refreshIME
   await loadConfig(location.search);
   btn_gen.addEventListener("click", doGenerate); // nth=0
   if (hasText()) doGenerate();

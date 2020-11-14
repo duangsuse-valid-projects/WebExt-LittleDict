@@ -34,7 +34,7 @@ function xhrReadText(url: string): Promise<string> {
   });
 }
 
-function clearChild(e:HTMLElement) {
+function clearChilds(e:HTMLElement) {
   while (e.firstChild != null) e.removeChild(e.firstChild);
 }
 function registerOneshotClicks(es: HTMLCollection, actions: (() => any)[]) { // "feat=" oneshot feat.
@@ -63,14 +63,16 @@ type CustomRender = (name:string, desc:string) => HTMLElement
 type OnTrieLoad = (name:string, trie:()=>STrie, opts: object) => any
 type SMap = Map<string, string>
 
-let dict: Map<String, ()=>STrie> = new Map;
-let trie: STrie;
 let noTrie: STrie = new Trie; noTrie.set(["X"], "待加载");
 let delimiters: PairString = ["\n", "="];
-let flags: string[] = [];
-let isScriptsEnabled = false;
 const SEP = " ";
 const newlines = {}; for (let nl of ["\n", "\r", "\r\n"]) newlines[nl] = null;
+
+let dict: Map<String, ()=>STrie> = new Map;
+let trie = noTrie;
+let flags: string[] = [];
+let isScriptsEnabled = false;
+let preferMode: string = null;
 let customItems = {}; for (let k in newlines) customItems[k] = null;
 function alertFailedReq(ex: PairString) {
   try { let [url, msg] = ex; alert(`Failed get ${url}: ${msg}`); }
@@ -142,6 +144,7 @@ async function readOption(name: string, value: string): Promise<boolean> {
       helem<HTMLInputElement>("text").value += await referText(value); // text concat feat.
       break;
     case "mode":
+      preferMode = value;
       helem<HTMLOptionElement>("select-mode").value = value;
       break;
     case "font-size":
@@ -163,7 +166,7 @@ async function readOption(name: string, value: string): Promise<boolean> {
     case "mode-html":
       if (!isScriptsEnabled) { alert(`未启用不安全的 HTML 加载： ${value}`); break; }
       customHTML0Code = value;
-      helem<HTMLOptionElement>("select-display").value = "自定义HTML…";
+      helem<HTMLOptionElement>("select-format").value = "自定义HTML…";
       break;
     case "delim0": delimiters[0] = value; break;
     case "delim1": delimiters[1] = value; break;
@@ -227,11 +230,11 @@ async function readTrieData(expr: string): Promise<SMap> {
   return map;
 }
 
-function initOnChangeDisplay(sel_display: HTMLSelectElement, customFmtRef: [RecurStructFmt]) {
+function initOnChangeFormat(sel_format: HTMLSelectElement, customFmtRef: [RecurStructFmt]) {
   const bracketFmt = new BracketFmt(["{", "}"], ", ");
   const indentFmt = new IndentationFmt();
-  const setDisplay = () => { //v two <select> s.
-    customHTML0 = sel_display.value;
+  const setFormat = () => { //v two <select> s.
+    customHTML0 = sel_format.value;
     customFmtRef[0] = customHTML0.endsWith(")")? indentFmt : bracketFmt;
     if (customHTML0 in customRenders) {
       customHTML = customRenders[customHTML0];
@@ -244,10 +247,10 @@ function initOnChangeDisplay(sel_display: HTMLSelectElement, customFmtRef: [Recu
       };
     } else throw Error(`unknown render ${customHTML0}`);
   };
-  addCallNoargEventListener(sel_display, "change", setDisplay); // nth=0
+  addCallNoargEventListener(sel_format, "change", setFormat); // nth=0
 }
 
-function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_display: HTMLElement) {
+function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_format: HTMLElement) {
   const featExpander = () => {
     const toggle = (ev:Event) => { 
       const css = "abbr-expand";
@@ -261,7 +264,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
     };
     addCallNoargEventListener(btn_update, "click", addAbbrExpand); // nth=1
   };
-  const refreshDisplay = () => { sel_display.dispatchEvent(new Event("change")); };
+  const refreshFormat = () => { sel_format.dispatchEvent(new Event("change")); };
   const feat2ndTokenize = () => {
     const flAskd = "scriptsAsked";
     const wrapRender = () => {
@@ -278,7 +281,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
         return (esParent.firstChild != null)? esParent.innerHTML : null;
       };
       let recursive = hasFlag("2ndTokenizeRecursive"); //v update default renders
-      if (recursive && !isScriptsEnabled && !hasFlag(flAskd)) { flags.push(flAskd); featScripts(); refreshDisplay()/*rec*/; return; }
+      if (recursive && !isScriptsEnabled && !hasFlag(flAskd)) { flags.push(flAskd); featScripts(); refreshFormat()/*rec*/; return; }
       customHTML = recursive? (k, v) => oldRender(k, joinCustomHTML(tokenize(v))) : (k, v) => {
         let elem = oldRender(k, v);
         let accumHTML = elem.innerHTML; // 2nd tokenize feat
@@ -292,7 +295,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
         if (accumHTML != elem.innerHTML) { elem.innerHTML = accumHTML; elem.classList.add("recognized-2nd"); }
         return elem;
       };
-    }; sel_display.addEventListener("change", wrapRender); refreshDisplay(); // nth=1
+    }; sel_format.addEventListener("change", wrapRender); refreshFormat(); // nth=1
   };
   const featScripts = () => {
     if (window["chrome"] && !isScriptsEnabled && prompt("你要启用脚本特性吗？浏览器插件有很大的权限，别被人利用！(输入1)", "0") != "1") {
@@ -302,7 +305,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
       (code:string) => (e) => { e.innerHTML = code; },
       (s) => { let e = document.createElement("span"); e.innerHTML = s; return e; });
     isScriptsEnabled = true;
-    refreshDisplay();
+    refreshFormat();
   };
   const addFlag = (name:string) => () => { flags.push(name); };
   const all = (...feats:(()=>void)[]) => () => { for (let feat of feats) feat(); };
@@ -310,7 +313,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
     all(featExpander, addFlag("abbrExpander")),
     null, // add-config requires initial scope
     feat2ndTokenize,
-    all(addFlag("2ndTokenizeRecursive"), refreshDisplay),
+    all(addFlag("2ndTokenizeRecursive"), refreshFormat),
     featScripts/* runs after ^ so no refresh. */];
 }
 
@@ -386,7 +389,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
       tarea.selectionStart -= possible[0].length;
       setFirst(possible[1], true);
     }
-    clearChild(ul_possibleWord); // 此外？的 possible list
+    clearChilds(ul_possibleWord); // 此外？的 possible list
     let word: IteratorResult<PairString>;
     while (!(word = wordz.next()).done) {
       let item = element("li", withDefaults(),
