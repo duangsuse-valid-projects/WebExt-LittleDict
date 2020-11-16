@@ -86,6 +86,8 @@ let customHTML: CustomRender;
 let customRenders = makeCustomRenders(withText, s => document.createTextNode(s));
 let inwordGrep = {};
 
+let featButtons: HTMLButtonElement[] = null;
+
 function makeCustomRenders(withText: (s:string) => Conf, makeText: (s:string) => Node): {[key: string]: CustomRender} {
   return {
     "上标(Ruby notation)": (k, v) => element("ruby", withDefaults(), makeText(k), element("rt", withText(v))),
@@ -171,9 +173,10 @@ async function readOption(name: string, value: string): Promise<boolean> {
     case "delim0": delimiters[0] = value; break;
     case "delim1": delimiters[1] = value; break;
     case "feat":
-      let enable = helem("output").getElementsByTagName("button")[Number.parseInt(value)]
+      featButtons = featButtons ?? [...helem("output").getElementsByTagName("button")];
+      let enable = featButtons[Number.parseInt(value)];
       if (enable != null) { enable.click(); }
-      else { alert(`请在设置 text 前启用 feat=${value}`); }
+      else { alert(`请在设置 text 前启用 feat=${value} 或一次其它 feat=`); } // TODO 以组件化类字段替换
       break;
     case "inword-grep":
       let [_, c, sRe, subst] = PAT_GREP.exec(value);
@@ -337,8 +340,10 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
   };
   const insert = (text:string) => { // 插入组词
     if (tarea.selectionStart == tarea.selectionEnd) { tarea.value += text; }
-    else { tarea.value = tarea.value.substr(0, tarea.selectionStart) + text; } // partial impl.
+    else { tarea.value = tarea.value.substr(0, tarea.selectionStart) + text/*tarea.setRangeText(text)*/; } // partial impl.
   };
+  const hasSelection = (ta:HTMLTextAreaElement) => ta.selectionStart != ta.selectionEnd;
+  const selectionCount = (ta:HTMLTextAreaElement) => ta.selectionEnd - ta.selectionStart;
   let fstCss = e_fstWord.classList; const cssUnknow = "unknown-word";
   const setFirst = (text:string, is_recog:boolean) => {
     e_fstWord.textContent = text; if (!is_recog) { fstCss.add(cssUnknow); }
@@ -357,17 +362,24 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         tarea.value = ""; iModifyfPart = 0;
         return;
       case "deleteContentBackward":
+        isDeleting = true;
+        if (textBefore.length >= tarea.textLength + 2) {} // 支持批量删除
+        if (tarea.textLength+1 > iModifyfPart) { /*输入区无需撤字*/break; }
         let m = destruct(textBefore);
         if (m != null) { let [nk, w] = m; tarea.selectionStart -= nk-1; insert(w); iModifyfPart -= nk/*w有多长不用管，退回到前词*/; }
-        isDeleting = true; break;
+        break;
       case "insertText": //v 提升候选到二级组成（如字到词组）
         if (ev.data == " ") {
           if (isKnown()) { lastWord = e_fstWord.textContent; }
           else { /*候选项的不知道，就不必输入了。*/break; }
           let m = destruct(lastWord); if (m == null) { break; }
-          tarea.selectionStart -= m[1].length+1;
+          tarea.selectionStart = iModifyfPart; // 支持自动填最长候选时空格直输
+          let nWd = m[1].length + 1/*' '*/;
+          tarea.selectionStart = tarea.selectionEnd - ((selectionCount(tarea) == nWd)? nWd : nWd - 1);
           insert(lastWord); iModifyfPart += lastWord.length;
           setFirst("", false); return; // 必须重置，不然会覆盖文本、错算 iModifyPart
+        } else if (hasSelection(tarea)) {
+          if (tarea.selectionStart < iModifyfPart) { iModifyfPart -= selectionCount(tarea) - (tarea.selectionEnd - iModifyfPart); } // 支持批量替换
         }
         break;
     }
