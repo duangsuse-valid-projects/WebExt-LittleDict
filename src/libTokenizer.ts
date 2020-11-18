@@ -19,6 +19,16 @@ function element<TAG extends keyof(HTMLElementTagNameMap)>(tagName:TAG, config:C
 }
 function configured(...confs: Conf[]): Conf { return (e) => { for (let conf of confs) conf(e); }; }
 
+type ContextMenuOnClick = (info: chrome.contextMenus.OnClickData, tab: chrome.tabs.Tab) => void
+class ContextMenuDSL {
+  title: string; op_childs: (ContextMenuOnClick | ContextMenuDSL[]);
+  constructor(title: string, op_childs: (ContextMenuOnClick | ContextMenuDSL[])) { this.title = title; this.op_childs = op_childs; }
+  create(cfg_base: chrome.contextMenus.CreateProperties) {}
+  get isSubMenu() { return (this.op_childs instanceof Array); }
+}
+function menu(title: string, op: (ContextMenuOnClick|null) = null) { return new ContextMenuDSL(title, op); }
+function subMenus(title: string, ...childs: ContextMenuDSL[]) { return new ContextMenuDSL(title, childs); }
+
 let xhrUrlPrefix = "";
 function xhrReadText(url: string): Promise<string> {
   let purl = xhrUrlPrefix + url;
@@ -68,11 +78,16 @@ let delimiters: PairString = ["\n", "="];
 const SEP = " ";
 const newlines = {}; for (let nl of ["\n", "\r", "\r\n"]) newlines[nl] = null;
 
-let dict: Map<String, ()=>STrie> = new Map;
+let dict: Map<string, ()=>STrie> = new Map;
 let trie = noTrie;
+let dictCache: Map<string, Map<string, string>> = new Map; // TODO in class ctor
+
+let scriptProcessors: {[key: string]: (v:string) => string} = {}; // TODO support
+let scriptEvents = { onInput: (ta:HTMLTextAreaElement)=>{}, onDone: (e_out:HTMLDivElement)=>{} };
 let flags: string[] = [];
 let isScriptsEnabled = false;
 let preferMode: string = null;
+let styles: string[] = []; // TODO support
 let customItems = {}; for (let k in newlines) customItems[k] = null;
 function alertFailedReq(ex: PairString) {
   try { let [url, msg] = ex; alert(`Failed get ${url}: ${msg}`); }
@@ -183,7 +198,7 @@ async function readOption(name: string, value: string): Promise<boolean> {
       let re = RegExp(sRe);
       if (subst.length >= 2 && subst.indexOf(c, 1) != -1 && subst != c) { alert(`${re} 替换后，"${subst}" 不得在首含外有 "${c}"`); return; }
       inwordGrep[c] = [re, subst];
-      break;
+      break; // TODO support outword-grep
     default: return false;
   }
   return true;
@@ -327,6 +342,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
 function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_trie: () => STrie, e_fstWord: HTMLElement, ul_possibleWord: HTMLUListElement): ()=>void {
   var charsWord: STrie; var wordChars: STrie;
   var textBefore: string; var lastWord: string; var iModifyfPart = 0; // 组词撤回树、候选区、输入区
+  var isSeekModify = false;
 
   const refresh = () => { // 上俩 STrie
     charsWord = get_trie();
@@ -339,10 +355,14 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
     catch (ex) { return null; }
   };
   const insert = (text:string) => { // 插入组词
-    if (tarea.selectionStart == tarea.selectionEnd) { tarea.value += text; }
-    else { tarea.value = tarea.value.substr(0, tarea.selectionStart) + text/*tarea.setRangeText(text)*/; } // partial impl.
+    if (tarea.selectionStart == tarea.selectionEnd && tarea.selectionEnd == tarea.textLength) { tarea.value += text; }
+    else { // like: tarea.setRangeText(text)
+      let cursor = tarea.selectionStart;
+      tarea.value = tarea.value.substr(0, tarea.selectionStart) + text + tarea.value.substr(tarea.selectionEnd, tarea.textLength);
+      cursor += text.length;
+      tarea.selectionStart = cursor; tarea.selectionEnd = cursor;
+    }
   };
-  const hasSelection = (ta:HTMLTextAreaElement) => ta.selectionStart != ta.selectionEnd;
   const selectionCount = (ta:HTMLTextAreaElement) => ta.selectionEnd - ta.selectionStart;
   let fstCss = e_fstWord.classList; const cssUnknow = "unknown-word";
   const setFirst = (text:string, is_recog:boolean) => {
@@ -363,7 +383,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         return;
       case "deleteContentBackward":
         isDeleting = true;
-        if (textBefore.length >= tarea.textLength + 2) {} // 支持批量删除
+        if (textBefore.length >= tarea.textLength + 2) { iModifyfPart = tarea.selectionStart; } // 仅支持批量删除重组词
         if (tarea.textLength+1 > iModifyfPart) { /*输入区无需撤字*/break; }
         let m = destruct(textBefore);
         if (m != null) { let [nk, w] = m; tarea.selectionStart -= nk-1; insert(w); iModifyfPart -= nk/*w有多长不用管，退回到前词*/; }
@@ -377,27 +397,34 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
           let nWd = m[1].length + 1/*' '*/;
           tarea.selectionStart = tarea.selectionEnd - ((selectionCount(tarea) == nWd)? nWd : nWd - 1);
           insert(lastWord); iModifyfPart += lastWord.length;
-          setFirst("", false); return; // 必须重置，不然会覆盖文本、错算 iModifyPart
-        } else if (hasSelection(tarea)) {
-          if (tarea.selectionStart < iModifyfPart) { iModifyfPart -= selectionCount(tarea) - (tarea.selectionEnd - iModifyfPart); } // 支持批量替换
+          setFirst("", false); isSeekModify = false; return; // 必须重置，不然会覆盖文本、错算 iModifyPart
+        } else {
+          if (!isSeekModify && tarea.selectionStart != tarea.textLength) { isSeekModify = true; iModifyfPart = tarea.selectionStart -1; }
         }
         break;
     }
     let input = tarea.value.substr(iModifyfPart);
     if (input == "") return; // 别在清空时列出全部词！
-    fstCss.remove(cssUnknow); // 先假设识别了。
-    try {
-      let point = charsWord.path(chars(input));
-      if (isDeleting) {
-        if (point.value != undefined) { setFirst(point.value, true); }
-        else { setFirst("见下表", false); } // 靠删除确定前缀子串
-      }
-      wordz = joinKeyIterate(point)[Symbol.iterator]();
-    } catch (ex) { setFirst("?", false); return; }
+    const tryRecognize = (ks:string[]) => {
+      try {
+        let point = charsWord.path(ks);
+        if (isDeleting) {
+          if (point.value != undefined) { setFirst(point.value, true); }
+          else { setFirst("见下表", false); } // 靠删除确定前缀子串
+        }
+        wordz = joinKeyIterate(point)[Symbol.iterator]();
+      } catch (ex) { setFirst("?", false); return false; }
+      fstCss.remove(cssUnknow); // 识别了。
+      return true;
+    };
+    const tryPrefix = () => { let prefix = charsWord.getPrefix(chars(input)); return (prefix != null)? tryRecognize(chars(input.substr(0, prefix[0]))) : false; };
+    //^ fuzzy design, 限制： path 不能提取前缀、 getPrefix 仅能匹配前缀 （这是个特性，大雾）
+    if (!tryRecognize(chars(input)) && !tryPrefix()) return;// 积极末端插入断言优化
+
     if (!isDeleting) {
       let possible = wordz.next().value; // 显示 longest word
       if (possible == undefined) return;
-      tarea.value += possible[0];
+      insert(possible[0]);
       tarea.selectionStart -= possible[0].length;
       setFirst(possible[1], true);
     }

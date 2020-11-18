@@ -27,7 +27,7 @@ opChain 的我记得是比较麻烦（没看过我 ParserKt InfixPattern 实现�
   所以说，递归、闭包、CPS 果然是很相容嘛。
 
 
-最后，关于渲染方面我也不清楚要不要加 <pre> 让浏览器处理 #text 的换行好了，以及是不是给未识别一个 tag ，或者不加 .recognized 是不是更快；总之能用就好。
+最后，关于渲染方面我也不清楚要不要加 `<pre>` 让浏览器处理 #text 的换行好了，以及是不是给未识别一个 tag ，或者不加 .recognized 是不是更快；总之能用就好。
 
 以前我听说拼接 HTML 性能比操纵 DOM 好，实践后我才发现这想法真智障。
 
@@ -161,3 +161,39 @@ require 'sinatra'; set :static, false; get('*') { headers 'Access-Control-Allow-
 ```
 
 直到完成，IME 都不是很成熟（虽然比起初衷已经拓展太多），比如结合原有自动填最长候选时如果用户直接空格会导致选区合并、覆盖前一字，或是批量删除会导致修改区计算错误之类的，但总体上已经可以使用，没有导致无法输入的bug。
+
+到最后 libTokenizer 打算对象化了，而 IME 也支持 TextArea 的浮动选区光标。
+
+本来计划 gettext 支持自动给 checkbox 创建 label ，性能复用权衡下放弃了，开始打算在配置页用 form 也没意义。
+
+计划特性对递归分词，有基于递归深度可选可配的 render ，还有只分词一部分 HTML 选区的（就需要 DOM 插入/子串一大堆索引计算操作），太麻烦决定取消了，简单点只有浮窗也能用。
+
+现在的一些限制：
++ 全页翻译自动更新的话只能全选
++ 浮窗也只能全选后查看整块文本
++ 不能关闭右键菜单用不到的功能
++ 不能自动下载配置字符串
++ 需要用户确认配置的安全性
++ 不能只处理选区，如果有可能也不支持跨页面块处理
++ 不支持 Greasy Fork 和 PWA 应用化，只能作为 WebExt
+
+打算改进 IME 的第二天。开始支持动态选区了，不过保留了 `iModifyPart` 变量作为缓冲和可移植性的保障，只在删除时注意改写其位置
+
+即便更新以后，选区的自由度也仅仅是允许批量删除/插入时替换字词而已，而且受 `Trie.path` 的限制也不能提供零时结果，真应该改变下底层异常架构了。
+
+受到 DOM 事件入口时序影响，也没法实现批量替换专门的重新设置
+
+接下来要支持 `addon-littledict-options:` 导入和删除配置字符串
+
+还有 navigation: N/B recognized elements ， ja/zh/... 等基于站点的自动配置和生成
+
+`当前网站语言(add)，当前字典共有{n}项`
+
+`当前已加载{n}个字典，点击清除键-值数据缓存(clear)` (prompt "" 清除所有)
+
+```js
+// inject script instead of message "init" and await ping-backend initialized pong
+// no need to pre-detect text block since backend will auto-skip unrecognized part
+```
+
+关于「还原处理」和「复制词义」是如何实现也考虑过是不是要保留内部 HTML ，但这种方法效能很低而且不利于复制词义的选区保持，所以只能采用另设渲染器对应提取器的方法。

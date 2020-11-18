@@ -1,7 +1,11 @@
 // head: <script src="gettext.js" texts="a,b,c"></script>
 
+function gettext(name:string, default_value: string = "???") {
+  try { return chrome.i18n.getMessage(name); }
+  catch (ex) {return default_value; }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const gettext = (name:string) => chrome.i18n.getMessage(name);
   let myConfig = document.head.querySelector("script[src=\"gettext.js\"]");
   if (myConfig == null) return;
   let texts = myConfig.getAttribute("texts")?.split(",") ?? null;
