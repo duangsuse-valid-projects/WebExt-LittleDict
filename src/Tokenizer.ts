@@ -19,8 +19,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   var refreshIME: ()=>void;
   const refreshTrie = () => { let name = sel_mode.value; trie = dict.has(name)? dict.get(name)()/*lazy*/ : noTrie; refreshIME(); };
 
-  let dlStatus = element("option", withText("待从配置加载！")); // re-used DOM obj.
   const loadConfig = async (url: string) => { // conf-add feat.
+    let dlStatus = element("option", withText("待从配置加载！")); // DOM obj !re-used.
     sel_mode.appendChild(dlStatus);
     await readDictOptions(url, (k, mk_trie, opts) => {
       dlStatus.textContent = `已下载 ${k}…`;
@@ -54,8 +54,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   let customFmtRef: [RecurStructFmt] = [undefined];
   initOnChangeFormat(sel_format, customFmtRef);
 
-  sel_mode.appendChild(dlStatus);
-  dlStatus.textContent = "在初始化…";
   sel_mode.onchange = refreshTrie;
   refreshIME = createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
 
@@ -95,7 +93,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   };
 
-  sel_mode.removeChild(dlStatus); // added near refreshIME
   await loadConfig(location.search);
   btn_gen.addEventListener("click", doGenerate); // nth=0
   if (hasText()) doGenerate();

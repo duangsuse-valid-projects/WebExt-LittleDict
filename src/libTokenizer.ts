@@ -342,7 +342,7 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
 function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_trie: () => STrie, e_fstWord: HTMLElement, ul_possibleWord: HTMLUListElement): ()=>void {
   var charsWord: STrie; var wordChars: STrie;
   var textBefore: string; var lastWord: string; var iModifyfPart = 0; // 组词撤回树、候选区、输入区
-  var isSeekModify = false;
+  var isModifySeeked = false;
 
   const refresh = () => { // 上俩 STrie
     charsWord = get_trie();
@@ -356,19 +356,31 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
   };
   const insert = (text:string) => { // 插入组词
     if (tarea.selectionStart == tarea.selectionEnd && tarea.selectionEnd == tarea.textLength) { tarea.value += text; }
-    else { // like: tarea.setRangeText(text)
+    else {
       let cursor = tarea.selectionStart;
-      tarea.value = tarea.value.substr(0, tarea.selectionStart) + text + tarea.value.substr(tarea.selectionEnd, tarea.textLength);
+      tarea.setRangeText(text);
       cursor += text.length;
       tarea.selectionStart = cursor; tarea.selectionEnd = cursor;
     }
   };
   const selectionCount = (ta:HTMLTextAreaElement) => ta.selectionEnd - ta.selectionStart;
+
   let fstCss = e_fstWord.classList; const cssUnknow = "unknown-word";
   const setFirst = (text:string, is_recog:boolean) => {
     e_fstWord.textContent = text; if (!is_recog) { fstCss.add(cssUnknow); }
   };
   const isKnown = () => !fstCss.contains(cssUnknow);
+  const promptWord = () => {
+    if (isKnown()) { lastWord = e_fstWord.textContent; }
+    else { /*候选项的不知道，就不必输入了。*/return false; }
+    let m = destruct(lastWord); if (m == null) { return false; }
+    tarea.selectionStart = iModifyfPart; // 支持自动填最长候选时空格直输
+    let nWd = m[1].length + 1/*' '*/;
+    tarea.selectionStart = tarea.selectionEnd - ((selectionCount(tarea) == nWd)? nWd : nWd - 1);
+    insert(lastWord); iModifyfPart += lastWord.length;
+    setFirst("", false); isModifySeeked = false; // 必须重置，不然会覆盖文本、错算 iModifyPart
+    return true;
+  };
 
   tarea.onkeydown = (ev) => { if (ev.key == "Backspace") textBefore = tarea.value; }; // 留下删词时的原文
   e_fstWord.onclick = () => { if (isKnown()) op_out(e_fstWord.textContent); };
@@ -383,23 +395,20 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         return;
       case "deleteContentBackward":
         isDeleting = true;
-        if (textBefore.length >= tarea.textLength + 2) { iModifyfPart = tarea.selectionStart; } // 仅支持批量删除重组词
-        if (tarea.textLength+1 > iModifyfPart) { /*输入区无需撤字*/break; }
-        let m = destruct(textBefore);
-        if (m != null) { let [nk, w] = m; tarea.selectionStart -= nk-1; insert(w); iModifyfPart -= nk/*w有多长不用管，退回到前词*/; }
+        if (textBefore.length >= tarea.textLength + 2) { isModifySeeked = true; iModifyfPart = tarea.selectionStart; break; } // 仅支持批量删除重组词
+        let sL = tarea.selectionStart;
+        if (isModifySeeked) { if (sL > iModifyfPart) /*输入区无需撤字*/{break;} else if (sL == iModifyfPart) /*删除“跌破区间”情况*/{ isModifySeeked = false; break; } }
+        let m = destruct((sL == tarea.textLength)? textBefore : textBefore.substr(0, sL+1));
+        if (m != null) { let [nk, w] = m; tarea.selectionStart -= nk-1; insert(w); iModifyfPart -= nk/*w有多长不用管，退回到前词*/; isModifySeeked = true; iModifyfPart = tarea.selectionStart - w.length; }
         break;
       case "insertText": //v 提升候选到二级组成（如字到词组）
         if (ev.data == " ") {
-          if (isKnown()) { lastWord = e_fstWord.textContent; }
-          else { /*候选项的不知道，就不必输入了。*/break; }
-          let m = destruct(lastWord); if (m == null) { break; }
-          tarea.selectionStart = iModifyfPart; // 支持自动填最长候选时空格直输
-          let nWd = m[1].length + 1/*' '*/;
-          tarea.selectionStart = tarea.selectionEnd - ((selectionCount(tarea) == nWd)? nWd : nWd - 1);
-          insert(lastWord); iModifyfPart += lastWord.length;
-          setFirst("", false); isSeekModify = false; return; // 必须重置，不然会覆盖文本、错算 iModifyPart
+          if (promptWord()) break;
+          iModifyfPart = 0;
+          if (promptWord()) break; // 从 0 即整个输入串提升 // TODO 删除过分的跳转做法
+          return;
         } else {
-          if (!isSeekModify && tarea.selectionStart != tarea.textLength) { isSeekModify = true; iModifyfPart = tarea.selectionStart -1; }
+          if (!isModifySeeked) { isModifySeeked = true; iModifyfPart = tarea.selectionStart -1; }
         }
         break;
     }
