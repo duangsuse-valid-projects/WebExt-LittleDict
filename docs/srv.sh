@@ -1,0 +1,1 @@
+ruby -e "require 'sinatra'; set :static, false; get('*') { headers 'Access-Control-Allow-Origin' => '*'; fp=request.path; if fp.end_with?'.js'; response.headers['Content-Type']='text/javascript'; end; body File.read('.'+fp) }"

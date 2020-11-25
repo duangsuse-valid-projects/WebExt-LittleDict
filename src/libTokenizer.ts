@@ -341,8 +341,8 @@ function initFeatureEnablers(btn_update: HTMLElement, div_out: HTMLElement, sel_
  */
 function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_trie: () => STrie, e_fstWord: HTMLElement, ul_possibleWord: HTMLUListElement): ()=>void {
   var charsWord: STrie; var wordChars: STrie;
-  var textBefore: string; var lastWord: string; var iModifyfPart = 0; // 组词撤回树、候选区、输入区
-  var isModifySeeked = false;
+  var lastWord: string; var iModifyfPart = 0; // 组词撤回树、候选区、输入区
+  var isModifySeeked = false; var textBefore: string;
 
   const refresh = () => { // 上俩 STrie
     charsWord = get_trie();
@@ -363,7 +363,9 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
       tarea.selectionStart = cursor; tarea.selectionEnd = cursor;
     }
   };
-  const selectionCount = (ta:HTMLTextAreaElement) => ta.selectionEnd - ta.selectionStart;
+  const replace = (n:number, text:string) => { tarea.selectionStart = (tarea.selectionStart) - n; return insert(text); };
+  const seeked = (dist:number) => { isModifySeeked = true; iModifyfPart = tarea.selectionStart + dist; };
+  const bufferCount = () => tarea.selectionStart - iModifyfPart;
 
   let fstCss = e_fstWord.classList; const cssUnknow = "unknown-word";
   const setFirst = (text:string, is_recog:boolean) => {
@@ -374,10 +376,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
     if (isKnown()) { lastWord = e_fstWord.textContent; }
     else { /*候选项的不知道，就不必输入了。*/return false; }
     let m = destruct(lastWord); if (m == null) { return false; }
-    tarea.selectionStart = iModifyfPart; // 支持自动填最长候选时空格直输
-    let nWd = m[1].length + 1/*' '*/;
-    tarea.selectionStart = tarea.selectionEnd - ((selectionCount(tarea) == nWd)? nWd : nWd - 1);
-    insert(lastWord); iModifyfPart += lastWord.length;
+    replace(bufferCount() + 1/*' '*/, lastWord); iModifyfPart += lastWord.length;
     setFirst("", false); isModifySeeked = false; // 必须重置，不然会覆盖文本、错算 iModifyPart
     return true;
   };
@@ -387,6 +386,37 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
   const handler = (ev:InputEvent) => { // 输入法（迫真）
     let wordz: Iterator<PairString>;
     let isDeleting: boolean = false;
+    const tryRecognize = () => {
+      let mpart = tarea.value.substr(iModifyfPart, tarea.selectionStart);
+      if (mpart == "") return;
+      let ks = chars(mpart);
+      try {
+        let point = charsWord.path(ks);
+        if (isDeleting) {
+          if (point.value != undefined) { setFirst(point.value, true); }
+          else { setFirst("见下表", false); } // 靠删除确定前缀子串
+        }
+        wordz = joinKeyIterate(point)[Symbol.iterator]();
+      } catch (ex) { setFirst("?", false); return; }
+      fstCss.remove(cssUnknow); // 识别了。
+
+      if (!isDeleting) {
+        let possible = wordz.next().value; // 显示 longest word
+        if (possible == undefined) return;
+        insert(possible[0]);
+        tarea.selectionStart -= possible[0].length;
+        setFirst(possible[1], true);
+      }
+      clearChilds(ul_possibleWord); // 此外？的 possible list
+      let word: IteratorResult<PairString>;
+      while (!(word = wordz.next()).done) {
+        let item = element("li", withDefaults(),
+          element("b", withText(word.value[0])), element("a", withText(word.value[1]))
+        );
+        item.firstChild.addEventListener("click", () => { op_out(item.lastChild.textContent); });
+        ul_possibleWord.appendChild(item);
+      } // 不这么做得加 DownlevelIteration
+    };
     switch (ev.inputType) {
       case "insertLineBreak":
         let tv = tarea.value;
@@ -395,57 +425,29 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         return;
       case "deleteContentBackward":
         isDeleting = true;
-        if (textBefore.length >= tarea.textLength + 2) { isModifySeeked = true; iModifyfPart = tarea.selectionStart; break; } // 仅支持批量删除重组词
+        if (textBefore.length >= tarea.textLength + 2) { seeked(0); break; } // 仅支持批量删除重组词
         let sL = tarea.selectionStart;
-        if (isModifySeeked) { if (sL > iModifyfPart) /*输入区无需撤字*/{break;} else if (sL == iModifyfPart) /*删除“跌破区间”情况*/{ isModifySeeked = false; break; } }
-        let m = destruct((sL == tarea.textLength)? textBefore : textBefore.substr(0, sL+1));
-        if (m != null) { let [nk, w] = m; tarea.selectionStart -= nk-1; insert(w); iModifyfPart -= nk/*w有多长不用管，退回到前词*/; isModifySeeked = true; iModifyfPart = tarea.selectionStart - w.length; }
+        if (isModifySeeked)/*>= break*/ { if (sL > iModifyfPart) /*输入区无需撤字*/{break;} else if (sL == iModifyfPart) /*删除“跌破区间”情况*/{ isModifySeeked = false; break; } }
+        let m = destruct((sL == tarea.textLength)? textBefore : textBefore.substr(0, sL +1));
+        if (m != null) { let [nk, w] = m; replace(nk, w); seeked(-w.length); }
         break;
       case "insertText": //v 提升候选到二级组成（如字到词组）
         if (ev.data == " ") {
+          tarea.selectionStart -= 1/*' '*/;
+          tryRecognize();
           if (promptWord()) break;
+          let oldI = iModifyfPart;
           iModifyfPart = 0;
+          tryRecognize();
           if (promptWord()) break; // 从 0 即整个输入串提升 // TODO 删除过分的跳转做法
+          iModifyfPart = oldI;
           return;
         } else {
-          if (!isModifySeeked) { isModifySeeked = true; iModifyfPart = tarea.selectionStart -1; }
+          if (!isModifySeeked) { seeked(-1); }
         }
         break;
     }
-    let input = tarea.value.substr(iModifyfPart);
-    if (input == "") return; // 别在清空时列出全部词！
-    const tryRecognize = (ks:string[]) => {
-      try {
-        let point = charsWord.path(ks);
-        if (isDeleting) {
-          if (point.value != undefined) { setFirst(point.value, true); }
-          else { setFirst("见下表", false); } // 靠删除确定前缀子串
-        }
-        wordz = joinKeyIterate(point)[Symbol.iterator]();
-      } catch (ex) { setFirst("?", false); return false; }
-      fstCss.remove(cssUnknow); // 识别了。
-      return true;
-    };
-    const tryPrefix = () => { let prefix = charsWord.getPrefix(chars(input)); return (prefix != null)? tryRecognize(chars(input.substr(0, prefix[0]))) : false; };
-    //^ fuzzy design, 限制： path 不能提取前缀、 getPrefix 仅能匹配前缀 （这是个特性，大雾）
-    if (!tryRecognize(chars(input)) && !tryPrefix()) return;// 积极末端插入断言优化
-
-    if (!isDeleting) {
-      let possible = wordz.next().value; // 显示 longest word
-      if (possible == undefined) return;
-      insert(possible[0]);
-      tarea.selectionStart -= possible[0].length;
-      setFirst(possible[1], true);
-    }
-    clearChilds(ul_possibleWord); // 此外？的 possible list
-    let word: IteratorResult<PairString>;
-    while (!(word = wordz.next()).done) {
-      let item = element("li", withDefaults(),
-        element("b", withText(word.value[0])), element("a", withText(word.value[1]))
-      );
-      item.firstChild.addEventListener("click", () => { op_out(item.lastChild.textContent); });
-      ul_possibleWord.appendChild(item);
-    } // 不这么做得加 DownlevelIteration
+    tryRecognize(); // 别在清空时列出全部词！
   };
   tarea.oninput = handler; // ins,del,NL
   return refresh;

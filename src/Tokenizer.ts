@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const featConfiger = () => { //v misc in-helpDoc button event, dyn generated.
     insertAfter(sel_format, element("button", configured(
       withText("导入参数"),
-      withClicked(() => { loadConfig(ta_text.value); }) // TODO support selection
+      withClicked(() => { loadConfig(ta_text.value); }) // TODO support selection & ask change input?
     )));
     insertAfter(sel_format, element("button", configured(
       withText("叠改已渲染文本"),

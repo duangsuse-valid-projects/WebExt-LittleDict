@@ -62,9 +62,9 @@
     <dt>style</dt>
     <dd>加载另外的 <abbr title="层叠样式表">CSS</abbr> 样式链接(':' 起始)，或者直接的文本</dd>
     <dt>script</dt><dd>加载一段 JavaScript 脚本代码，需要启用相应特性</dd>
-    <dd>url-prefix</dd><dt>指示后方加载链接的地址前缀</dt>
-    <dd>import-conf</dd><dt>仅导入字典，但不创建菜单项（例如，翻译字典名时可以用）</dt>
-    <dd>mode-html</dd><dt>加载自定义 K-V HTML 渲染模板，需要启用脚本特性</dt>
+    <dt>url-prefix</dt><dd>指示后方加载链接的地址前缀，注意，不会自动添加末尾的 <code>/</code> 路径</dd>
+    <dt>import-conf</dt><dd>仅导入字典，但不创建菜单项（例如，翻译字典名时可以用）</dd>
+    <dt>mode-html</dt><dd>加载自定义 K-V HTML 渲染模板，需要启用脚本特性</dd>
     <dt><var>name</var></dt><dd>创建名叫 <var>name</var> 的字典，其参数可以用 (a+b) (a>>b) (a>b) (~a)
 即 以b之值优先-合并、以b分词替换a的所有值、以b解释a的所有值、反向化a 的形式组合。
 默认是链接，加 ':' 引用已加载字典；你可以覆盖之前的字典名</dd>

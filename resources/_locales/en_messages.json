@@ -5,6 +5,8 @@
   "selDisp": "Select Format: ",
   "numFontSize": "Translated Font Size: ",
   "isKeepFmt": "Keep Layout? ",
+  "recognized": "recogzd.",
+  "2ndRecognized": "2nd recog.",
   "do-revDict.text": "Reverse Dict",
   "ta-ime.placeholder": "Input word prefix to get meaning",
   "do-translatePage.text": "Page Translate",
@@ -13,5 +15,8 @@
   "input-params.placeholder": "Input Tokenizer URL params",
   "do-saveOverride.text": "Save current option override",
   "ta-customKv.placeholder": "Input custom K=V pairs that applies to all dictionaries",
-  "savedLangs": "Saved language configs (click to remove):"
+  "savedLangs": "Saved language configs (click to remove):",
+  "setConfig": "Choose a defined configuration pack:",
+  "do-configCombine.text": "Combine...",
+  "verb-done": "Done"
 }

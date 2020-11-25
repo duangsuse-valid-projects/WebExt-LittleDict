@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8"/>
-    <script src="gettext.js" texts="input-params .placeholder,do-saveOverride .text,abbr-appSite .text .title,ta-customKv .placeholder,savedLangs"></script>
+    <script src="gettext.js" texts="input-params .placeholder,do-saveOverride .text,abbr-appSite .text .title,ta-customKv .placeholder,savedLangs,setConfig,do-configCombine .text"></script>
   </head>
   <body>
     <div><input id="input-params" placeholder="" /><br><p id="para-note"></p></div>
@@ -16,8 +16,15 @@
       <button id="do-saveOverride"></button>
     </div>
     <div><textarea id="ta-customKv" placeholder=""></textarea></div>
-    <label id="text-savedLangs" for="list-savedLangs"></label>
-    <ul id="list-savedLangs"></ul>
+    <div>
+      <label id="text-savedLangs" for="list-savedLangs"></label>
+      <ul id="list-savedLangs"></ul>
+    </div>
+    <div>
+      <label id="text-setConfig" for="select-config"></label>
+      <select id="select-config"></select>
+      <button id="do-configCombine"></button>
+    </div>
     <script src="act_options.js"></script>
   </body>
 </html>

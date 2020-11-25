@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8"/>
-    <script src="gettext.js" texts="selMode,selDisp,numFontSize,isKeepFmt,do-revDict .text,do-translatePage .text,ta-ime .placeholder"></script>
+    <script src="gettext.js" texts="selMode,selDisp,numFontSize,isKeepFmt,recognized,2ndRecognized,do-revDict .text,do-translatePage .text,ta-ime .placeholder"></script>
   </head>
   <body>
     <div>
@@ -21,6 +21,10 @@
     </div>
     <div>
       <button id="do-goDirL">←</button> <button id="do-goDirM">・</button> <button id="do-goDirR">→</button>
+      <select id="select-goKind">
+        <option  id="text-recognized"></option>
+        <option id="text-2ndRecognized"></option>
+      </select>
     </div>
     <script src="act_popup.js"></script>
   </body>
