@@ -1,0 +1,6 @@
+#output { background-color: black; color: white; }
+body { background-color: #111111; }
+.config-panel { color: burlywood; }
+.config-panel textarea { background-color: black; color:chartreuse; }
+.config-panel button { background: none; color:cadetblue; }
+.config-panel select { background: none; color: red; }

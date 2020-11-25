@@ -3,10 +3,6 @@ function findElemIn(xs: HTMLCollection, p: (e:Element) => boolean): Element|null
   for (let e of xs) if (p(e)) return e;
   return null;
 }
-// duangsuse: 很抱歉写得如此低抽象、不可复用
-// 毕竟 TypeScript 不是特别走简洁风（无论面向对象还是方法扩展），而且要考虑 ES5/ES6 的问题，也比较纠结。
-// 而且我也不清楚该用 object 还是 Map 的说，所以就比较混淆了，实在该打（误
-// 对不起，真的对不起。 其实就是字典迭代的问题，毕竟 JS 的数据结构比较不统一嘛。
 
 type Conf = (e:HTMLElement) => any
 function withDefaults(): Conf { return (e) => {}; }
@@ -18,6 +14,11 @@ function element<TAG extends keyof(HTMLElementTagNameMap)>(tagName:TAG, config:C
   return e as HTMLElementTagNameMap[TAG];
 }
 function configured(...confs: Conf[]): Conf { return (e) => { for (let conf of confs) conf(e); }; }
+
+// duangsuse: 很抱歉写得如此低抽象、不可复用
+// 毕竟 TypeScript 不是特别走简洁风（无论面向对象还是方法扩展），而且要考虑 ES5/ES6 的问题，也比较纠结。
+// 而且我也不清楚该用 object 还是 Map 的说，所以就比较混淆了，实在该打（误
+// 对不起，真的对不起。 其实就是字典迭代的问题，毕竟 JS 的数据结构比较不统一嘛。
 
 type ContextMenuOnClick = (info: chrome.contextMenus.OnClickData, tab: chrome.tabs.Tab) => void
 class ContextMenuDSL {
@@ -162,8 +163,12 @@ async function readOption(name: string, value: string): Promise<boolean> {
       break;
     case "mode":
       preferMode = value;
-      helem<HTMLOptionElement>("select-mode").value = value;
+      helem<HTMLSelectElement>("select-mode").value = value;
       break;
+    case "format-num":
+      let selFormat = helem<HTMLSelectElement>("select-format");
+      selFormat.selectedIndex = Number.parseInt(value);
+      selFormat.dispatchEvent(new Event("change"));
     case "font-size":
       helem("output").style.fontSize = value;
       break;
@@ -171,7 +176,8 @@ async function readOption(name: string, value: string): Promise<boolean> {
       let iArg = value.lastIndexOf('@'); // style=:a.css@cyan,yellow
       let desc = (iArg != -1)? value.substr(0, iArg) : value; // style-args feat.
       let code = await referText(desc);
-      let css = (iArg != -1)? code.replace(PAT_CSS_ARGUMENT, (_, no) => value.substr(iArg+1).split(',')[Number.parseInt(no)] ) : code;
+      let args = value.substr(iArg+1).split(',');
+      let css = (iArg != -1)? code.replace(PAT_CSS_ARGUMENT, (_, no) => args[Number.parseInt(no)] ) : code;
       document.head.appendChild(element("style", withText(css))); // add-style feat
       break;
     case "script":

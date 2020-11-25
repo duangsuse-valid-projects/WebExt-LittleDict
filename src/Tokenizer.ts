@@ -95,8 +95,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   };
 
-  await loadConfig(location.search);
   btn_gen.addEventListener("click", doGenerate); // nth=0
+  await loadConfig(location.search);
   if (hasText()) doGenerate();
 });
 

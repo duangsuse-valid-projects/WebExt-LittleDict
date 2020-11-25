@@ -213,3 +213,11 @@ require 'sinatra'; set :static, false; get('*') { headers 'Access-Control-Allow-
 弄了之后发现我在『面向查错编程』时，其实变成自己讨厌的人了……
 
 本来咱是推崇流编程的，也就是说主张通过循环堆积变量的方式计算写本来用大量常数代码的程序，可是在“空格上词”的逻辑里，一味 `+1 -1` ，让代码变得人类不可读了…… 还自我感觉良好，真的可耻。
+
+解决了输入法问题后基本明朗了。看看
+
+```http
+?url-prefix=http://localhost:4567/&style=:darkmode.css&style=:hl_2ndrecog.css@purple&conf=example/jp.ini&format-num=1&text=:example/星之在处.txt&style=:bgimage.css@no-repeat,bottom left,https://img.moegirl.org.cn/common/c/cf/%E9%97%87%E9%9F%B3.png&style=:hide_cfg_panel.css&style=:ruby_no_usersel.css
+```
+
+这个参数集。
