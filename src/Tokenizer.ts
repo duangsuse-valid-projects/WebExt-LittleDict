@@ -55,7 +55,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   initOnChangeFormat(sel_format, customFmtRef);
 
   sel_mode.onchange = refreshTrie;
-  refreshIME = createIME((text) => { ta_text.value += text; }, ta_word, () => trie, abb_word, list_possibleWord);
+  let ime = new InputMethod((text) => { ta_text.value += text; }, () => trie);
+  refreshIME = () => { ime.refresh(); };
+  ime.createOn(ta_word, abb_word, list_possibleWord);
 
   helem("trie-ops")?.childNodes?.forEach(function(e:HTMLInputElement) {
     if (e.nodeType == Node.TEXT_NODE) return;
