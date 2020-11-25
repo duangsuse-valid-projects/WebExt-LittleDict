@@ -6,11 +6,11 @@
 <ruby>Little<rt>xiao</rt> Dict<rt>字典</rt></ruby>
 </h1>
 
-📔 Little Trie-data based dictionary translating webpage with wide features.
+📔 Little Trie-data based dictionary translating webpages with wide features.
 
 ## Usage
 
-1. Install this extension in Firefox addons, Chrome store, or download Chrome .crx file
+1. Install this extension on Firefox addons, Chrome store, or download Chrome .crx file
 2. open browser "Extensions"/"Add-ons" setting page, find "LittleDict", switch to its "Perferences" tab
 3. Fill URL params, <kbd>Enter</kbd> to save. and you can test it by clicking on "Select App Site" below the input box
 

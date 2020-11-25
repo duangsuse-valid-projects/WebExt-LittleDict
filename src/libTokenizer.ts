@@ -363,20 +363,27 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
       tarea.selectionStart = cursor; tarea.selectionEnd = cursor;
     }
   };
-  const replace = (n:number, text:string) => { tarea.selectionStart = (tarea.selectionStart) - n; return insert(text); };
+  const selectAll = (ta:HTMLTextAreaElement) => {
+    ta.selectionStart = 0; ta.selectionEnd = ta.textLength;
+  };
+  const replace = (n:number, text:string) => { tarea.selectionStart -= n; return insert(text); };
   const seeked = (dist:number) => { isModifySeeked = true; iModifyfPart = tarea.selectionStart + dist; };
-  const bufferCount = () => tarea.selectionStart - iModifyfPart;
+  const modifyCount = () => tarea.selectionStart - iModifyfPart;
 
   let fstCss = e_fstWord.classList; const cssUnknow = "unknown-word";
   const setFirst = (text:string, is_recog:boolean) => {
-    e_fstWord.textContent = text; if (!is_recog) { fstCss.add(cssUnknow); }
+    e_fstWord.textContent = text; if (!is_recog) { fstCss.add(cssUnknow); } else { fstCss.remove(cssUnknow)/*识别了*/; }
   };
   const isKnown = () => !fstCss.contains(cssUnknow);
-  const promptWord = () => {
+  const setOnClickTextOperation = (e:Node, op:(text:string) => void) => {
+    e.addEventListener("click", () => { op(e.textContent); });
+  };
+  const promptWord = () => { // 提交既有的第一候选
     if (isKnown()) { lastWord = e_fstWord.textContent; }
     else { /*候选项的不知道，就不必输入了。*/return false; }
     let m = destruct(lastWord); if (m == null) { return false; }
-    replace(bufferCount() + 1/*' '*/, lastWord); iModifyfPart += lastWord.length;
+
+    replace(modifyCount(), lastWord); iModifyfPart += lastWord.length;
     setFirst("", false); isModifySeeked = false; // 必须重置，不然会覆盖文本、错算 iModifyPart
     return true;
   };
@@ -387,7 +394,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
     let wordz: Iterator<PairString>;
     let isDeleting: boolean = false;
     const tryRecognize = () => {
-      let mpart = tarea.value.substr(iModifyfPart, tarea.selectionStart);
+      let mpart = tarea.value.substr(iModifyfPart, modifyCount());
       if (mpart == "") return;
       let ks = chars(mpart);
       try {
@@ -398,7 +405,6 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         }
         wordz = joinKeyIterate(point)[Symbol.iterator]();
       } catch (ex) { setFirst("?", false); return; }
-      fstCss.remove(cssUnknow); // 识别了。
 
       if (!isDeleting) {
         let possible = wordz.next().value; // 显示 longest word
@@ -413,7 +419,8 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         let item = element("li", withDefaults(),
           element("b", withText(word.value[0])), element("a", withText(word.value[1]))
         );
-        item.firstChild.addEventListener("click", () => { op_out(item.lastChild.textContent); });
+        setOnClickTextOperation(item.firstChild, insert); // fuzzy: change e_fstWord ?
+        setOnClickTextOperation(item.lastChild, op_out);
         ul_possibleWord.appendChild(item);
       } // 不这么做得加 DownlevelIteration
     };
@@ -429,18 +436,14 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         let sL = tarea.selectionStart;
         if (isModifySeeked)/*>= break*/ { if (sL > iModifyfPart) /*输入区无需撤字*/{break;} else if (sL == iModifyfPart) /*删除“跌破区间”情况*/{ isModifySeeked = false; break; } }
         let m = destruct((sL == tarea.textLength)? textBefore : textBefore.substr(0, sL +1));
-        if (m != null) { let [nk, w] = m; replace(nk, w); seeked(-w.length); }
+        if (m != null) { let [nk, w] = m; replace(nk -1, w); seeked(-w.length); }
         break;
       case "insertText": //v 提升候选到二级组成（如字到词组）
         if (ev.data == " ") {
-          tarea.selectionStart -= 1/*' '*/;
-          tryRecognize();
-          if (promptWord()) break;
-          let oldI = iModifyfPart;
-          iModifyfPart = 0;
-          tryRecognize();
-          if (promptWord()) break; // 从 0 即整个输入串提升 // TODO 删除过分的跳转做法
-          iModifyfPart = oldI;
+          if (!promptWord()) {
+            iModifyfPart = 0; tarea.selectionStart -= 1/*' '*/;
+            tryRecognize(); selectAll(tarea);
+          }
           return;
         } else {
           if (!isModifySeeked) { seeked(-1); }
