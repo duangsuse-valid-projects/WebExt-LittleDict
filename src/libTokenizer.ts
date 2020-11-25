@@ -363,6 +363,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
       tarea.selectionStart = cursor; tarea.selectionEnd = cursor;
     }
   };
+  const fireInsertedOn = (ta: HTMLTextAreaElement, text:string) => { ta.dispatchEvent(new InputEvent("input", {inputType: "insertText", data: text})); };
   const selectAll = (ta:HTMLTextAreaElement) => {
     ta.selectionStart = 0; ta.selectionEnd = ta.textLength;
   };
@@ -419,7 +420,7 @@ function createIME(op_out: (s:string) => void, tarea: HTMLTextAreaElement, get_t
         let item = element("li", withDefaults(),
           element("b", withText(word.value[0])), element("a", withText(word.value[1]))
         );
-        setOnClickTextOperation(item.firstChild, insert); // fuzzy: change e_fstWord ?
+        setOnClickTextOperation(item.firstChild, (s) => { insert(s); fireInsertedOn(tarea, s); });
         setOnClickTextOperation(item.lastChild, op_out);
         ul_possibleWord.appendChild(item);
       } // 不这么做得加 DownlevelIteration
